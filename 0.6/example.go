@@ -63,7 +63,7 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function stri
 
 
 		//jsonByte,_:=coder.DecodeString(string(json))
-		err:=stub.PutState(string(id),json)
+		err:=stub.PutState(string(id),[]byte(json))
 		if err!=nil{
 			return nil,fmt.Errorf("put fund error %s",err)
 		}
