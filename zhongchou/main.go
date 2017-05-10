@@ -156,7 +156,6 @@ func Invset(orderId string,creatorId string,amount int){
 		return
 	}
 
-	//
 	var investRecord InvestRecord
 	investRecord.ID = getUUID()
 	investRecord.CreatorId = creatorId
