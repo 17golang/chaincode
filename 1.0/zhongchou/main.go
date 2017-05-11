@@ -1,41 +1,69 @@
+/*
+Copyright IBM Corp. 2016 All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+		 http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
+
 import (
-	_"encoding/json"
 	"fmt"
-	"github.com/satori/go.uuid"
-	"strings"
-	_"errors"
-	"time"
-	_"reflect"
+	"strconv"
+	"github.com/hyperledger/fabric/core/chaincode/shim"
+	pb "github.com/hyperledger/fabric/protos/peer"
 	"encoding/json"
+	"time"
+	"math/rand"
+)
+
+const (
+	ORDER_STATUS_CREATE = iota 	//订单创建
+	ORDER_STATUS_CANINVEST
+	ORDER_STATUS_FULL		//订单满额
+	ORDER_STATUS_LOAN		//订单放款
+	ORDER_STATUS_REFUND		//订单还款
+	ORDER_STATUS_FINISHED		//订单完成
+	//ORDER_STATUS_CANCEL		//订单取消
 )
 
 //存放用户信息
-var primaryKeyToUser = map[string]User{}
+var primaryKeyToUser = map[string]*User{}
+
+var nameToUser = map[string]*User{}
 
 //存放用户众筹信息
-var creatorToOrder = map[string]map[string]Order{}
+var creatorToOrder = map[string]map[string]*Order{}
 
 //存放用户投资信息
-//var creatorToInvestRecord = map[string]InvestRecord{}
+var creatorToInvestRecord = map[string][]*InvestRecord{}
 
 //存放用户还款信息
-//var creatorToRefundRecord = map[string]RefundRecord{}
+var creatorToRefundRecord = map[string][]*RefundRecord{}
 
 
 type User struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
 	Mobile string `json:"mobile"`
-	Amount int    `json:"amount"`
+	Amount float64    `json:"amount"`
 }
 
 type Order struct {
 	ID            string         `json:"id"`
 	Title         string         `json:"title"`
-	Amount        int            `json:"amount"`
-	Current	      int	     `json:"current"`
+	Amount        float64            `json:"amount"`
+	Current	      float64	     `json:"current"`
 	Status        int            `json:"status"`
 	Rate          float64        `json:"rate"`
 	CreatorId     string         `json:"creatorId"`
@@ -48,168 +76,628 @@ type Order struct {
 type InvestRecord struct {
 	ID        string `json:"id"`
 	CreatorId string `json:"creatorId"`
+	UserName  string `json:"userName"`
 	OrderId   string `json:"orderId"`
-	Amount    int    `json:"amount"`
+	Amount    float64    `json:"amount"`
 }
 
 type RefundRecord struct {
 	ID        string `json:"id"`
 	CreatorId string `json:"creatorId"`
 	OrderId   string `json:"orderId"`
-	Amount    int    `json:"amount"`
+	Amount    float64    `json:"amount"`
 }
 
-func init() {
-	//初始化数据
 
-	//User1 := User{"user_1", "Randy", "18673692416", 0}
-	//User2 := User{"user_2", "Myra", "18673692222", 0}
-	//
-	//primaryKeyToUser[User1.ID] = User1
-	//primaryKeyToUser[User2.ID] = User2
-	//
-	//
-	//order1 := Order{getUUID(), "众筹_1", 10000, 0, 0.05, "user_1", "2017-05-08 15:52:00", "2017-05-31 23:59;59", []InvestRecord{}, []RefundRecord{}}
-	//order2 := Order{getUUID(), "众筹_2", 10000, 0, 0.06, "user_2", "2017-05-08 15:52:00", "2017-05-31 23:59;59", []InvestRecord{}, []RefundRecord{}}
-	//creatorToOrder[order1.CreatorId] = append(creatorToOrder[order1.CreatorId], order1)
-	//creatorToOrder[order2.CreatorId] = append(creatorToOrder[order2.CreatorId], order2)
-	//creatorToOrder[order1.CreatorId] = append(creatorToOrder[order1.CreatorId], order1)
-	//submap := creatorToOrder[order1.]
+// SimpleChaincode example simple Chaincode implementation
+type SimpleChaincode struct {
+}
 
-	//order1.
+func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response  {
+	fmt.Println("########### example_cc Init ###########")
+	_, args := stub.GetFunctionAndParameters()
+	var A, B string    // Entities
+	var Aval, Bval int // Asset holdings
+	var err error
 
-	//o1, _ := json.Marshal(order1)
-	//m["order_1"] = o1
-	//o2, _ := json.Marshal(order2)
-	//m["order_2"] = o2
+	if len(args) != 4 {
+		return shim.Error("Incorrect number of arguments. Expecting 4")
+	}
+
+	// Initialize the chaincode
+	A = args[0]
+	Aval, err = strconv.Atoi(args[1])
+	if err != nil {
+		return shim.Error("Expecting integer value for asset holding")
+	}
+	B = args[2]
+	Bval, err = strconv.Atoi(args[3])
+	if err != nil {
+		return shim.Error("Expecting integer value for asset holding")
+	}
+	fmt.Printf("Aval = %d, Bval = %d\n", Aval, Bval)
+
+	// Write the state to the ledger
+	err = stub.PutState(A, []byte(strconv.Itoa(Aval)))
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	err = stub.PutState(B, []byte(strconv.Itoa(Bval)))
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+
+	CreateUser("Randy","18673692416",20000)
+
+	CreateUser("Myra","18673692435",10000)
+
+	return shim.Success(nil)
+
 
 }
 
-func getUUID() string{
-	return strings.Replace(uuid.NewV4().String(),"-","",-1)
+
+func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface) pb.Response {
+	return shim.Error("Unknown supported call")
 }
 
-func CreateUser(name string,mobile string,amount int) User{
-	_,ok :=primaryKeyToUser[name]
+
+func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
+	fmt.Println("########### example_cc Invoke ###########")
+	function, args := stub.GetFunctionAndParameters()
+
+	if function != "invoke" {
+		return shim.Error("Unknown function call")
+	}
+
+	if len(args) < 2 {
+		return shim.Error("Incorrect number of arguments. Expecting at least 2")
+	}
+
+	if args[0] == "delete" {
+		// Deletes an entity from its state
+		return t.deleteState(stub, args)
+	}
+
+	if args[0] == "query" {
+		// queries an entity state
+		return t.query(stub, args)
+	}
+	if args[0] == "move" {
+		// Deletes an entity from its state
+		return t.move(stub, args)
+	}
+	if args[0] == "createOrder"{
+		return t.createOrder(stub,args)
+	}
+	if args[0] == "publish" {
+		// Deletes an entity from its state
+		return t.publish(stub, args)
+	}
+	if args[0] == "invest" {
+		return t.invest(stub, args)
+	}
+	if args[0] == "loan" {
+		// Deletes an entity from its state
+		return t.loan(stub, args)
+	}
+	if args[0] == "refund" {
+		return t.refund(stub, args)
+	}
+
+	return shim.Error("Unknown action, check the first argument, must be one of 'delete', 'query', 'move' 'createOrder' 'publish' 'invest', 'loan' or 'refund'")
+}
+
+
+func (t *SimpleChaincode) move(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	// must be an invoke
+	var A, B string    // Entities
+	var Aval, Bval int // Asset holdings
+	var X int          // Transaction value
+	var err error
+
+	if len(args) != 4 {
+		return shim.Error("Incorrect number of arguments. Expecting 4, function followed by 2 names and 1 value")
+	}
+
+	A = args[1]
+	B = args[2]
+
+	// Get the state from the ledger
+	Avalbytes, err := stub.GetState(A)
+	if err != nil {
+		return shim.Error("Failed to get state")
+	}
+	if Avalbytes == nil {
+		return shim.Error("Entity not found")
+	}
+	Aval, _ = strconv.Atoi(string(Avalbytes))
+
+	Bvalbytes, err := stub.GetState(B)
+	if err != nil {
+		return shim.Error("Failed to get state")
+	}
+	if Bvalbytes == nil {
+		return shim.Error("Entity not found")
+	}
+	Bval, _ = strconv.Atoi(string(Bvalbytes))
+
+	// Perform the execution
+	X, err = strconv.Atoi(args[3])
+	if err != nil {
+		return shim.Error("Invalid transaction amount, expecting a integer value")
+	}
+	Aval = Aval - X
+	Bval = Bval + X
+	fmt.Printf("Aval = %d, Bval = %d\n", Aval, Bval)
+
+	// Write the state back to the ledger
+	err = stub.PutState(A, []byte(strconv.Itoa(Aval)))
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	err = stub.PutState(B, []byte(strconv.Itoa(Bval)))
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	return shim.Success(nil);
+}
+
+// Deletes an entity from state
+func (t *SimpleChaincode) deleteState(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	if len(args) != 1 {
+		return shim.Error("Incorrect number of arguments. Expecting 1")
+	}
+
+	A := args[1]
+
+	// Delete the key from the state in ledger
+	err := stub.DelState(A)
+	if err != nil {
+		return shim.Error("Failed to delete state")
+	}
+
+	return shim.Success(nil)
+}
+
+// Query callback representing the query of a chaincode
+func (t *SimpleChaincode) query(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+
+	// if len(args) != 2 {
+	// 	return shim.Error("Incorrect number of arguments. Expecting 3 params")
+	// }
+	var subQueryMethod string = args[1]
+	var param = args[2]
+	switch subQueryMethod {
+	case "userList" :{
+		var userList [] *User
+		for _,v := range primaryKeyToUser{
+
+			userList  = append(userList,v)
+
+		}
+		bytes,err := json.Marshal(userList)
+		if err != nil{
+			return shim.Error("find UserList error !")
+		}
+		return shim.Success(bytes)
+	}
+	case "user" :{
+		bytes,err := json.Marshal(primaryKeyToUser[param])
+		if err != nil{
+			return shim.Error("find User error !")
+		}
+		return shim.Success(bytes)
+	}
+	case "orderList" :{
+		var orderList [] *Order
+		for _,v := range creatorToOrder{
+			for _,v2 := range v{
+				orderList  = append(orderList,v2)
+			}
+		}
+		bytes,err := json.Marshal(orderList)
+		if err != nil{
+			return shim.Error("find OrderList error !")
+		}
+		return shim.Success(bytes)
+	}
+	case "userOrderList" :{
+		bytes,err := json.Marshal(creatorToOrder[param])
+		if err != nil{
+			return shim.Error("find OrderList error !")
+		}
+		return shim.Success(bytes)
+	}
+	case "order" :{
+		return t.queryOrder(stub,args)
+	}
+	case "investRecord" :{
+		bytes,err := json.Marshal(creatorToInvestRecord[param])
+		if err != nil{
+			return shim.Error("find investRecord error !")
+		}
+		return shim.Success(bytes)
+	}
+	case "refundRecord" :{
+		bytes,err := json.Marshal(creatorToRefundRecord[param])
+		if err != nil{
+			return shim.Error("find refundRecord error !")
+		}
+		return shim.Success(bytes)
+	}
+	default:{
+		return shim.Error("support subQuery method is 'userList','user','orderList','userOrderList','order','refundRecord','investRecord'!")
+	}
+
+	}
+}
+
+//随机字符串
+func getUUID() string {
+	var size = 32
+	var kind = 3
+	ikind, kinds, result := kind, [][]int{[]int{10, 48}, []int{26, 97}, []int{26, 65}}, make([]byte, size)
+	is_all := kind > 2 || kind < 0
+	rand.Seed(time.Now().UnixNano())
+	for i :=0; i < size; i++ {
+		if is_all { // random ikind
+			ikind = rand.Intn(3)
+		}
+		scope, base := kinds[ikind][0], kinds[ikind][1]
+		result[i] = uint8(base+rand.Intn(scope))
+	}
+	return string(result)
+}
+
+func CreateUser(name string,mobile string,amount float64) *User{
+	_,ok :=nameToUser[name]
 	if(ok){
 		fmt.Println("User is exist!")
-		//return nil
+		return nil
 	}
-	user := User{getUUID(),name,mobile,amount}
+	var user User
+	user.ID = getUUID()
+	user.Name = name
+	user.Mobile = mobile
+	user.Amount = amount
 
 	fmt.Printf("Create User successfully User = %v\n",user)
 
-	primaryKeyToUser[user.ID] = user
-	return user
+	primaryKeyToUser[user.ID] = &user
+	nameToUser[user.Name] = &user
+	return &user
 }
 
-func CreateOrder(title string,amount int,rate float64,creatorId string) Order{
+
+func (t *SimpleChaincode) createOrder(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	var title = args[1]
+	var creatorId = args[4]
+	var createTime = args[5]
+	var endTime = args[6]
+	amount,err :=strconv.ParseFloat(args[2],32)
+	if(err != nil){
+		return shim.Error("param amount must be integer!")
+	}
+	rate,err := strconv.ParseFloat(args[3],32)
+	if(err != nil){
+		return shim.Error("param rate parse error,please have a good check!")
+	}
 	order:=Order{}
 	order.ID=getUUID()
 	order.Title=title
-	order.Amount =amount
+	order.Amount = amount
 	order.Current = 0
-	order.Status = 0
+	order.Status = ORDER_STATUS_CREATE
 	order.Rate = rate
 	order.CreatorId = creatorId
-	order.CreateTime = time.Now().String()
-	order.EndTime = time.Now().String()
+	order.CreateTime = createTime
+	order.EndTime = endTime
 	order.InvestRecords = []InvestRecord{}
 	order.RefundRecords = []RefundRecord{}
-	fmt.Printf("Create Order successfully Order = %v\n",order)
 
-	submap :=creatorToOrder[creatorId]
-	if submap == nil {
-		submap = map[string]Order{}
+	subMap := creatorToOrder[creatorId]
+	if subMap == nil {
+		subMap = map[string]*Order{}
 	}
-	submap[order.ID] = order
-	creatorToOrder[creatorId] = submap
+	subMap[order.ID] = &order
+	creatorToOrder[creatorId] = subMap
 
-	return order
+	bytes,err := json.Marshal(&order)
+	if(err != nil){
+		shim.Error("Json marshal error!")
+	}
+	stub.PutState(order.ID,bytes)
+	byt,err := stub.GetState(order.ID)
+	if err != nil{
+		return shim.Error("Order is not exist!")
+	}
+
+	return shim.Success(byt)
 }
 
-func Invset(orderId string,creatorId string,amount int){
-	var order *Order
-	for _,v:= range creatorToOrder{
-		for _,v:=range v {
-			if(orderId == v.ID){
-				order = &v
-				break;
+func (t *SimpleChaincode) publish(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	var orderId = args[1]
+
+	var order1 Order
+
+	bytes,err := stub.GetState(orderId)
+	if err != nil{
+		return shim.Error("Order is not exist!")
+	}
+	json.Unmarshal(bytes,&order1)
+	order := &order1
+	if order == nil {
+		return shim.Error("Order parse error !")
+	}
+	if order.Status != ORDER_STATUS_CREATE{
+		return shim.Error("Order can't publish! status not create!")
+	}
+	order.Status = ORDER_STATUS_CANINVEST
+	b,err := json.Marshal(order)
+	if(err != nil){
+		shim.Error("Json marshal error!")
+	}
+	stub.PutState(order.ID,b)
+
+	var tempOrder *Order
+	for _,m := range creatorToOrder{
+		for  _,o := range m   {
+			if(orderId == o.ID){
+				tempOrder = o
+				break
 			}
 		}
 	}
-	if order == nil {
-		fmt.Println("Order is not exist!")
-		return
-	}
-	if order.Status == 1{
-		fmt.Println("Order has full of amount!")
-	}
-	//用户扣款
-	user := primaryKeyToUser[creatorId]
-	if  *user ==nil{
-		fmt.Println("User is not exist!")
-	}
-	if user.Amount < amount {
-		fmt.Printf("用户:%v 余额不足",user)
-		return
+	tempOrder.Status = order.Status
+	return shim.Success(nil)
+}
+
+func (t *SimpleChaincode) invest(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	var orderId = args[1]
+	var creatorId = args[2]
+	amount,err :=strconv.ParseFloat(args[3],32)
+	if(err != nil){
+		return shim.Error("param amount must be float!")
 	}
 
-	//
+	var order1 Order
+
+	bytes,err := stub.GetState(orderId)
+	if err != nil{
+		return shim.Error("Order is not exist!")
+	}
+	json.Unmarshal(bytes,&order1)
+	order := &order1
+	if order == nil {
+		return shim.Error("Order parse error !")
+	}
+	if order.Status != ORDER_STATUS_CANINVEST{
+		return shim.Error("Order can't invest! status can not invest")
+	}
+	if(order.Amount < amount){
+		return shim.Error("Invest amount can't greater than order left amount!")
+	}
+	//用户扣款
+	var user *User
+	user2,ok := primaryKeyToUser[creatorId]
+	if ok{
+		user = user2
+	}
+	if  user == nil{
+		return shim.Error("User can't invest!")
+	}
+	if user.Amount < amount {
+		return shim.Error("User has not enough money!")
+	}
+	//remove "amount" from user account
+	if user.Amount < amount{
+		return shim.Error("balance is not enough !")
+	}
+	user.Amount = user.Amount - amount
+
 	var investRecord InvestRecord
 	investRecord.ID = getUUID()
 	investRecord.CreatorId = creatorId
 	investRecord.Amount = amount
 	investRecord.OrderId = order.ID
+	investRecord.UserName = user.Name
 
 	order.InvestRecords = append(order.InvestRecords,investRecord)
 	order.Current += amount
 
+	creatorToInvestRecord[creatorId] = append(creatorToInvestRecord[creatorId],&investRecord)
+
 	//投资金额达到目标,修改订单状态为投资满额
-	fmt.Printf("hasInvestAmount=%v,orderAmount=%d\n",order.Current,order.Amount)
 	if order.Amount == order.Current{
-		order.Status = 1
+		order.Status = ORDER_STATUS_FULL
 	}
-	for _,v:= range creatorToOrder{
-		for _,o:=range v {
+
+	b,err := json.Marshal(order)
+	if(err != nil){
+		shim.Error("Json marshal error!")
+	}
+	stub.PutState(order.ID,b)
+
+	var tempOrder *Order
+	for _,m := range creatorToOrder{
+		for  _,o := range m   {
 			if(orderId == o.ID){
-				v[orderId] = *order
-				break;
+				tempOrder = o
+				break
 			}
 		}
 	}
+	tempOrder.Current = order.Current
+	tempOrder.Status  = order.Status
+	tempOrder.InvestRecords = order.InvestRecords
 
+	return shim.Success(nil)
+}
+
+func (t *SimpleChaincode) loan(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	var orderId = args[1]
+	var order1 Order
+
+	bytes,err := stub.GetState(orderId)
+	if err != nil{
+		return shim.Error("Order is not exist!")
+	}
+	json.Unmarshal(bytes,&order1)
+	order := &order1
+	if order.Status != ORDER_STATUS_FULL || order.Current != order.Amount{
+		return shim.Error("Order amount is not enough !")
+	}
+	//放款
+	user := primaryKeyToUser[order.CreatorId]
+	user.Amount = user.Amount + order.Current
+
+	//订单存放的投资金额清零
+	order.Current = 0
+
+	//订单状态改为已放款
+	order.Status = ORDER_STATUS_LOAN
+
+	b,err := json.Marshal(order)
+	if(err != nil){
+		shim.Error("Json marshal error!")
+	}
+	stub.PutState(order.ID,b)
+
+	var tempOrder *Order
+	for _,m := range creatorToOrder{
+		for  _,o := range m   {
+			if(orderId == o.ID){
+				tempOrder = o
+				break
+			}
+		}
+	}
+	tempOrder.Current = order.Current
+	tempOrder.Status  = order.Status
+
+	return shim.Success(nil)
+}
+
+func (t *SimpleChaincode)refund(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	var orderId = args[1]
+
+	var order1 Order
+
+	bytes,err := stub.GetState(orderId)
+	if err != nil{
+		return shim.Error("Order is not exist!")
+	}
+	json.Unmarshal(bytes,&order1)
+	order := &order1
+	if order == nil{
+		return shim.Error("Order is not exist !")
+	}
+	if order.Status != ORDER_STATUS_LOAN {
+		return shim.Error("Order can't refund current status is not loan!")
+	}
+	user := primaryKeyToUser[order.CreatorId]
+	if(user == nil){
+		return shim.Error("User is not exist !")
+	}
+	var receiveAmount float64
+	for _,v := range order.InvestRecords  {
+		receiveAmount += v.Amount * (1+order.Rate)
+	}
+	if user.Amount < receiveAmount{
+		return shim.Error("User balance is not enough !")
+	}
+
+	for _,v := range order.InvestRecords  {
+		u := primaryKeyToUser[v.CreatorId]
+
+		refundRecord := RefundRecord{}
+		refundRecord.ID = getUUID()
+		refundRecord.CreatorId = v.CreatorId
+		var realAmount = v.Amount * (1+order.Rate)
+		refundRecord.Amount = realAmount
+		refundRecord.OrderId = v.OrderId
+
+		if order.RefundRecords == nil{
+			order.RefundRecords = []RefundRecord{}
+		}
+		order.RefundRecords = append(order.RefundRecords,refundRecord)
+		u.Amount = u.Amount + realAmount
+		user.Amount = user.Amount - realAmount
+
+		creatorToRefundRecord[refundRecord.CreatorId] = append(creatorToRefundRecord[refundRecord.CreatorId],&refundRecord)
+	}
+	order.Status = ORDER_STATUS_REFUND
+
+	var sum float64
+	for _,v := range order.RefundRecords  {
+		sum += v.Amount
+	}
+	if order.Amount == sum{
+		order.Status = ORDER_STATUS_FINISHED
+	}
+
+	b,err := json.Marshal(order)
+	if(err != nil){
+		shim.Error("Json marshal error!")
+	}
+	stub.PutState(order.ID,b)
+
+	var tempOrder *Order
+	for _,m := range creatorToOrder{
+		for  _,o := range m   {
+			if(orderId == o.ID){
+				tempOrder = o
+				break
+			}
+		}
+	}
+	tempOrder.Status  = order.Status
+	tempOrder.RefundRecords = order.RefundRecords
+
+	return shim.Success(nil)
 }
 
 
+/**
+项目认筹记录查询
+create by wupeng
+ */
+func (t *SimpleChaincode) queryOrder(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 
-func main() {
-	user1 := CreateUser("Randy","18673692416",0)
-	user2 := CreateUser("Myra","18673692435",0)
-	CreateUser("Randy","18673692416",0)
+	fmt.Print("执行queryEntity方法: " )
+	fmt.Println(args)
 
-	o1 := CreateOrder("众筹_1",10000,0.05,user1.ID)
+	var key string
+	key = args[1]
 
-	o2 := CreateOrder("众筹_2",10000,0.05,user2.ID)
-	//fmt.Printf("o1=%d,o2=%d",o1,o2)
-
-	Invset(o1.ID,user1.ID,10000)
-
-
-	for _,v:= range creatorToOrder{
-		//v := map[string]Order{}(v)
-		//fmt.Println(reflect.TypeOf(v).String())
-		//fmt.Println(v)
-		for k,v:=range v {
-			b,_ :=json.Marshal(v)
-			if(o1.ID == v.ID){
-				fmt.Printf( " k = %v,v=%v\n",k,string(b))
-			}
-			if(o2.ID == v.ID){
-				fmt.Printf( " k2 = %v,v=%v\n",k,v)
-			}
-		}
+	orderBytes, err := stub.GetState(key)
+	if err != nil {
+		jsonResp := "{\"Error\":\"Failed to get state for " + key + "\"}"
+		return shim.Error(jsonResp)
 	}
 
+	var order Order
+	err1 := json.Unmarshal(orderBytes, &order)
+	if err1 != nil {
+		return shim.Error("GetState转struct失败--queryOrder")
+	}
 
+	bytes, err2 := json.Marshal(order)
+	if err2 != nil {
+		return shim.Error("order转json失败")
+	}
+
+	return shim.Success(bytes)
+}
+
+func main() {
+	err := shim.Start(new(SimpleChaincode))
+	if err != nil {
+		fmt.Printf("Error starting Simple chaincode: %s", err)
+	}
 }
