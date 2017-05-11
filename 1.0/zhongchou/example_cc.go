@@ -631,7 +631,7 @@ func (t *SimpleChaincode)refund(stub shim.ChaincodeStubInterface, args []string)
 	for _,v := range order.RefundRecords  {
 		sum += v.Amount
 	}
-	if order.Amount == sum{
+	if order.Amount <= sum{
 		order.Status = ORDER_STATUS_FINISHED
 	}
 
