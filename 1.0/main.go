@@ -23,7 +23,6 @@ var creatorToOrder = map[string]map[string]Order{}
 //存放用户还款信息
 //var creatorToRefundRecord = map[string]RefundRecord{}
 
-//var m = map[string]interface{}{}
 
 type User struct {
 	ID     string `json:"id"`
@@ -181,6 +180,8 @@ func Invset(orderId string,creatorId string,amount int){
 	}
 
 }
+
+
 
 func main() {
 	user1 := CreateUser("Randy","18673692416",0)
