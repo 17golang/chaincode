@@ -29,12 +29,16 @@ import (
 
 const (
 	ORDER_STATUS_CREATE = iota 	//订单创建
-	ORDER_STATUS_CANINVEST
+	ORDER_STATUS_CANINVEST		//订单有效
 	ORDER_STATUS_FULL		//订单满额
 	ORDER_STATUS_LOAN		//订单放款
 	ORDER_STATUS_REFUND		//订单还款
 	ORDER_STATUS_FINISHED		//订单完成
 	//ORDER_STATUS_CANCEL		//订单取消
+)
+const (
+	ADMIN = iota			//管理员
+	SIMPLE_PERSON			//普通用户
 )
 
 //存放用户信息
@@ -57,6 +61,7 @@ type User struct {
 	Name   string `json:"name"`
 	Mobile string `json:"mobile"`
 	Amount float64    `json:"amount"`
+	Role   int 	`json:"role"`
 }
 
 type Order struct {
@@ -128,10 +133,11 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response  {
 		return shim.Error(err.Error())
 	}
 
+	CreateUser("admin","18888888888",20000,ADMIN)
 
-	CreateUser("Randy","18673692416",20000)
+	CreateUser("Randy","18673692416",20000,SIMPLE_PERSON)
 
-	CreateUser("Myra","18673692435",10000)
+	CreateUser("Myra","18673692435",10000,SIMPLE_PERSON)
 
 	return shim.Success(nil)
 
@@ -147,27 +153,25 @@ func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface) pb.Response {
 func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	fmt.Println("########### example_cc Invoke ###########")
 	function, args := stub.GetFunctionAndParameters()
-
 	if function != "invoke" {
 		return shim.Error("Unknown function call")
 	}
-
 	if len(args) < 2 {
 		return shim.Error("Incorrect number of arguments. Expecting at least 2")
 	}
-
 	if args[0] == "delete" {
 		// Deletes an entity from its state
 		return t.deleteState(stub, args)
 	}
-
 	if args[0] == "query" {
 		// queries an entity state
 		return t.query(stub, args)
 	}
-	if args[0] == "move" {
-		// Deletes an entity from its state
-		return t.move(stub, args)
+	if args[0] == "createUser"{
+		return t.createUser(stub,args)
+	}
+	if args[0] == "recharge"{
+		return t.recharge(stub,args)
 	}
 	if args[0] == "createOrder"{
 		return t.createOrder(stub,args)
@@ -187,65 +191,9 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 		return t.refund(stub, args)
 	}
 
-	return shim.Error("Unknown action, check the first argument, must be one of 'delete', 'query', 'move' 'createOrder' 'publish' 'invest', 'loan' or 'refund'")
+	return shim.Error("Unknown action, check the first argument, must be one of 'delete', 'query', 'createOrder', 'publish', 'invest', 'loan' or 'refund'")
 }
 
-
-func (t *SimpleChaincode) move(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	// must be an invoke
-	var A, B string    // Entities
-	var Aval, Bval int // Asset holdings
-	var X int          // Transaction value
-	var err error
-
-	if len(args) != 4 {
-		return shim.Error("Incorrect number of arguments. Expecting 4, function followed by 2 names and 1 value")
-	}
-
-	A = args[1]
-	B = args[2]
-
-	// Get the state from the ledger
-	Avalbytes, err := stub.GetState(A)
-	if err != nil {
-		return shim.Error("Failed to get state")
-	}
-	if Avalbytes == nil {
-		return shim.Error("Entity not found")
-	}
-	Aval, _ = strconv.Atoi(string(Avalbytes))
-
-	Bvalbytes, err := stub.GetState(B)
-	if err != nil {
-		return shim.Error("Failed to get state")
-	}
-	if Bvalbytes == nil {
-		return shim.Error("Entity not found")
-	}
-	Bval, _ = strconv.Atoi(string(Bvalbytes))
-
-	// Perform the execution
-	X, err = strconv.Atoi(args[3])
-	if err != nil {
-		return shim.Error("Invalid transaction amount, expecting a integer value")
-	}
-	Aval = Aval - X
-	Bval = Bval + X
-	fmt.Printf("Aval = %d, Bval = %d\n", Aval, Bval)
-
-	// Write the state back to the ledger
-	err = stub.PutState(A, []byte(strconv.Itoa(Aval)))
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-
-	err = stub.PutState(B, []byte(strconv.Itoa(Bval)))
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-
-	return shim.Success(nil);
-}
 
 // Deletes an entity from state
 func (t *SimpleChaincode) deleteState(stub shim.ChaincodeStubInterface, args []string) pb.Response {
@@ -294,9 +242,20 @@ func (t *SimpleChaincode) query(stub shim.ChaincodeStubInterface, args []string)
 		return shim.Success(bytes)
 	}
 	case "orderList" :{
+		//非admin账户不能看到CREATE状态下的订单
+		var isAdmin bool = false
+		user,ok := primaryKeyToUser[param]
+		if ok{
+			if(user.Role == ADMIN){
+				isAdmin = true
+			}
+		}
 		var orderList [] *Order
 		for _,v := range creatorToOrder{
 			for _,v2 := range v{
+				if(!isAdmin && v2.Status == ORDER_STATUS_CREATE){
+					continue
+				}
 				orderList  = append(orderList,v2)
 			}
 		}
@@ -309,7 +268,7 @@ func (t *SimpleChaincode) query(stub shim.ChaincodeStubInterface, args []string)
 	case "userOrderList" :{
 		bytes,err := json.Marshal(creatorToOrder[param])
 		if err != nil{
-			return shim.Error("find OrderList error !")
+			return shim.Error("find userOrderList error !")
 		}
 		return shim.Success(bytes)
 	}
@@ -354,7 +313,7 @@ func getUUID() string {
 	return string(result)
 }
 
-func CreateUser(name string,mobile string,amount float64) *User{
+func CreateUser(name string,mobile string,amount float64,role int) *User{
 	_,ok :=nameToUser[name]
 	if(ok){
 		fmt.Println("User is exist!")
@@ -365,7 +324,7 @@ func CreateUser(name string,mobile string,amount float64) *User{
 	user.Name = name
 	user.Mobile = mobile
 	user.Amount = amount
-
+	user.Role = role
 	fmt.Printf("Create User successfully User = %v\n",user)
 
 	primaryKeyToUser[user.ID] = &user
@@ -373,6 +332,41 @@ func CreateUser(name string,mobile string,amount float64) *User{
 	return &user
 }
 
+func (t *SimpleChaincode) createUser(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	var name = args[1]
+	var mobile = args[2]
+	_,ok :=nameToUser[name]
+	if(ok){
+		return shim.Error("User name has exist!")
+	}
+	var user User
+	user.ID = getUUID()
+	user.Name = name
+	user.Mobile = mobile
+	user.Amount = 0
+	user.Role = SIMPLE_PERSON
+
+	primaryKeyToUser[user.ID] = &user
+	nameToUser[user.Name] = &user
+	return shim.Success(nil)
+}
+
+func (t *SimpleChaincode) recharge(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	var userId = args[1]
+	amount,err := strconv.ParseFloat(args[2],64)
+	if err != nil{
+		return shim.Error("recharge amount illegal!")
+	}
+
+	user,ok := primaryKeyToUser[userId]
+	if !ok{
+		shim.Error("User not exist!")
+	}
+	user.Amount = user.Amount + amount
+	nameToUser[user.Name] = &user
+
+	return shim.Success(nil)
+}
 
 func (t *SimpleChaincode) createOrder(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var title = args[1]
