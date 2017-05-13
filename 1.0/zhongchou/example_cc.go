@@ -161,12 +161,12 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 		// queries an entity state
 		return t.query(stub, args)
 	}
-	//
+	//凭证上传
 	if args[0] == "uploadTradeCertificate" {
 		return t.uploadTradeCertificate(stub, args)
 	}
 
-	return shim.Error("Unknown action, check the first argument, must be one of  ‘createUser’，‘recharge’，'createOrder', 'publish', 'invest', 'loan' or 'refund'")
+	return shim.Error("Unknown action, check the first argument, must be one of  ‘createUser’，‘recharge’，'createOrder', 'publish', 'invest', 'loan','uploadTradeCertificate' or 'refund'")
 }
 
 // 查询操作
@@ -175,7 +175,7 @@ func (t *SimpleChaincode) query(stub shim.ChaincodeStubInterface, args []string)
 	var subQueryMethod string = args[1]
 	var param = args[2]
 	switch subQueryMethod {
-	//用户
+	//用户列表查询
 	case "userList":
 		{
 			var userList []*User
@@ -199,7 +199,7 @@ func (t *SimpleChaincode) query(stub shim.ChaincodeStubInterface, args []string)
 			}
 			return shim.Success(bytes)
 		}
-	//众筹查询
+	//未审核众筹查询
 	case "orderList":
 		{
 			//非admin账户不能看到CREATE状态下的订单
@@ -247,6 +247,7 @@ func (t *SimpleChaincode) query(stub shim.ChaincodeStubInterface, args []string)
 		{
 			return t.queryOrder(stub, args)
 		}
+	//投资记录查询
 	case "investRecord":
 		{
 			bytes, err := json.Marshal(creatorToInvestRecord[param])
@@ -255,6 +256,7 @@ func (t *SimpleChaincode) query(stub shim.ChaincodeStubInterface, args []string)
 			}
 			return shim.Success(bytes)
 		}
+	//还款记录查询
 	case "refundRecord":
 		{
 			bytes, err := json.Marshal(creatorToRefundRecord[param])
@@ -288,6 +290,7 @@ func getUUID() string {
 	return string(result)
 }
 
+//创建用户
 func CreateUser(name string, mobile string, amount float64, role int) *User {
 	_, ok := nameToUser[name]
 	if ok {
@@ -326,6 +329,7 @@ func (t *SimpleChaincode) createUser(stub shim.ChaincodeStubInterface, args []st
 	return shim.Success(nil)
 }
 
+//账户充值
 func (t *SimpleChaincode) recharge(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var userId = args[1]
 	amount, err := strconv.ParseFloat(args[2], 64)
@@ -343,6 +347,7 @@ func (t *SimpleChaincode) recharge(stub shim.ChaincodeStubInterface, args []stri
 	return shim.Success(nil)
 }
 
+//创建众筹
 func (t *SimpleChaincode) createOrder(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var title = args[1]
 	var creatorId = args[4]
@@ -389,6 +394,7 @@ func (t *SimpleChaincode) createOrder(stub shim.ChaincodeStubInterface, args []s
 	return shim.Success(byt)
 }
 
+//发布众筹
 func (t *SimpleChaincode) publish(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var orderId = args[1]
 
@@ -426,6 +432,7 @@ func (t *SimpleChaincode) publish(stub shim.ChaincodeStubInterface, args []strin
 	return shim.Success(nil)
 }
 
+//认筹
 func (t *SimpleChaincode) invest(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var orderId = args[1]
 	var creatorId = args[2]
@@ -510,6 +517,7 @@ func (t *SimpleChaincode) invest(stub shim.ChaincodeStubInterface, args []string
 	return shim.Success(nil)
 }
 
+//放款
 func (t *SimpleChaincode) loan(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var orderId = args[1]
 	var order1 Order
@@ -557,6 +565,7 @@ func (t *SimpleChaincode) loan(stub shim.ChaincodeStubInterface, args []string) 
 	return shim.Success(nil)
 }
 
+//众筹回款
 func (t *SimpleChaincode) refund(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	var orderId = args[1]
 
@@ -638,10 +647,7 @@ func (t *SimpleChaincode) refund(stub shim.ChaincodeStubInterface, args []string
 	return shim.Success(nil)
 }
 
-/**
-项目认筹记录查询
-create by wupeng
-*/
+//凭证上传
 func (t *SimpleChaincode) uploadTradeCertificate(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 
 	fmt.Println("×××××××××××××上传交易凭证××××××××××××××")
@@ -675,10 +681,7 @@ func (t *SimpleChaincode) uploadTradeCertificate(stub shim.ChaincodeStubInterfac
 	return shim.Success(nil)
 }
 
-/**
-项目认筹记录查询
-create by wupeng
-*/
+//认筹记录查询
 func (t *SimpleChaincode) queryOrder(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 
 	fmt.Print("执行queryEntity方法: ")
